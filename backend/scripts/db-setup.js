@@ -11,6 +11,8 @@ const files = [
   'db/05_vector.sql',
   'db/06_transactions.sql',
   'db/07_seed_reference.sql',
+  'db/08_pharmacy_inventory.sql',
+  'db/09_doctor_activation_dispensing.sql',
 ];
 
 try {

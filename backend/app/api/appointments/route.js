@@ -56,10 +56,18 @@ export async function POST(request) {
     const created = await withTransaction(async (client) => {
       const { rows } = await client.query(
         `INSERT INTO APPOINTMENT (patient_id, doctor_id, appointment_date, status)
-         VALUES ($1, $2, $3::timestamptz, 'Scheduled')
+         SELECT $1, d.doctor_id, $3::timestamptz, 'Scheduled'
+         FROM DOCTOR AS d
+         WHERE d.doctor_id = $2 AND d.is_active = TRUE
+           AND $3::timestamptz > CURRENT_TIMESTAMP
          RETURNING appointment_id`,
         [actor.patientId, input.doctor_id, input.appointment_date],
       );
+      if (!rows[0]) {
+        const error = new Error('Doctor unavailable or appointment time is not in the future.');
+        error.code = '23503';
+        throw error;
+      }
       return rows[0];
     }, actor.userId);
     return Response.json({ appointment_id: created.appointment_id }, { status: 201 });

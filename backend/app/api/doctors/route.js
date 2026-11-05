@@ -18,13 +18,15 @@ export async function GET(request) {
     const actor = await getActor(request);
     if (!actor) return jsonError('Authentication required.', 401);
     const { rows } = await query(
-      `SELECT d.doctor_id, d.full_name,
+      `SELECT d.doctor_id, d.full_name, d.is_active,
               COALESCE(jsonb_agg(s.name ORDER BY s.name) FILTER (WHERE s.name IS NOT NULL), '[]'::jsonb) AS specializations
        FROM DOCTOR AS d
        LEFT JOIN DOCTOR_SPECIALIZATION AS ds ON ds.doctor_id = d.doctor_id
        LEFT JOIN SPECIALIZATION AS s ON s.specialization_id = ds.specialization_id
-       GROUP BY d.doctor_id, d.full_name
+       WHERE ($1::text <> 'patient' OR d.is_active = TRUE)
+       GROUP BY d.doctor_id, d.full_name, d.is_active
        ORDER BY d.full_name`,
+      [actor.role],
     );
     return Response.json({ doctors: rows });
   } catch (error) {
@@ -60,7 +62,7 @@ export async function POST(request) {
           [doctorId, specializationId],
         );
       }
-      return { doctor_id: doctorId, full_name: input.full_name };
+      return { doctor_id: doctorId, full_name: input.full_name, is_active: true };
     }, actor.userId);
     return Response.json({ doctor }, { status: 201 });
   } catch (error) {

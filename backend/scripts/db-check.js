@@ -4,6 +4,7 @@ const expectedTables = [
   'app_user', 'patient', 'doctor', 'specialization', 'doctor_specialization',
   'appointment', 'consultation', 'consultation_embedding', 'medicine',
   'prescription', 'prescription_medicine', 'prescription_audit',
+  'medicine_inventory_batch', 'inventory_movement', 'prescription_dispensing',
 ];
 const pool = createPool();
 let failed = false;
@@ -29,6 +30,23 @@ try {
       WHERE NOT tgisinternal AND tgname IN ('prescription_changes_audit', 'prescription_medicine_changes_audit')`],
     ['race-safe appointment indexes', `SELECT to_regclass('public.appointment_doctor_active_slot_uidx') IS NOT NULL
       AND to_regclass('public.appointment_patient_active_slot_uidx') IS NOT NULL AS present`],
+    ['doctor activation flag', `SELECT EXISTS (
+      SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = 'doctor'
+        AND a.attname = 'is_active' AND a.atttypid = 'boolean'::regtype AND a.attnotnull
+    ) AS present`],
+    ['prescription dispensing quantity fields', `SELECT count(*) = 3 AS present
+      FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = 'prescription_medicine'
+        AND a.attname IN ('route', 'frequency', 'quantity_prescribed') AND NOT a.attisdropped`],
+    ['idempotent prescription dispensing key', `SELECT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = 'public.prescription_dispensing'::regclass
+        AND contype = 'u' AND conkey = ARRAY[(SELECT attnum FROM pg_attribute
+          WHERE attrelid = 'public.prescription_dispensing'::regclass AND attname = 'transaction_key')]
+    ) AS present`],
   ];
   for (const [label, sql] of checks) {
     const { rows } = await pool.query(sql);

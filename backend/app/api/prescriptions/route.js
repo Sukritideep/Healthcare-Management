@@ -8,7 +8,10 @@ const schema = z.object({
   medicines: z.array(z.object({
     medicine_id: z.string().uuid(),
     dosage: z.string().trim().min(1).max(200),
+    route: z.string().trim().max(100).optional(),
+    frequency: z.string().trim().max(100).optional(),
     duration_days: z.number().int().positive().max(3650),
+    quantity_prescribed: z.number().int().positive().max(100000).optional(),
     instructions: z.string().trim().max(2000).optional(),
   }).strict()).min(1).max(50),
 }).strict();
@@ -28,7 +31,16 @@ export async function GET(request) {
                   'medicine_id', m.medicine_id,
                   'name', m.name,
                   'dosage', pm.dosage,
+                  'route', pm.route,
+                  'frequency', pm.frequency,
                   'duration_days', pm.duration_days,
+                  'quantity_prescribed', pm.quantity_prescribed,
+                  'quantity_dispensed', COALESCE((
+                    SELECT sum(pd.quantity)::integer
+                    FROM PRESCRIPTION_DISPENSING AS pd
+                    WHERE pd.prescription_id = pm.prescription_id
+                      AND pd.medicine_id = pm.medicine_id
+                  ), 0),
                   'instructions', pm.instructions
                 ) ORDER BY m.name)
                 FROM PRESCRIPTION_MEDICINE AS pm
@@ -74,9 +86,12 @@ export async function POST(request) {
       for (const medicine of input.medicines) {
         await client.query(
           `INSERT INTO PRESCRIPTION_MEDICINE
-             (prescription_id, medicine_id, dosage, duration_days, instructions)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [rows[0].prescription_id, medicine.medicine_id, medicine.dosage, medicine.duration_days, medicine.instructions || null],
+             (prescription_id, medicine_id, dosage, route, frequency,
+              duration_days, quantity_prescribed, instructions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [rows[0].prescription_id, medicine.medicine_id, medicine.dosage,
+           medicine.route || null, medicine.frequency || null, medicine.duration_days,
+           medicine.quantity_prescribed || null, medicine.instructions || null],
         );
       }
       return rows[0];

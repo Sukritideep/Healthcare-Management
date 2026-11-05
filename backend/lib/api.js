@@ -13,7 +13,10 @@ export function sameOrigin(request) {
   const origin = request.headers.get('origin');
   if (!origin) return false;
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const requestOrigin = new URL(request.url).origin;
+    const trustedFrontendOrigin = process.env.FRONTEND_ORIGIN;
+    return new URL(origin).origin === requestOrigin
+      || (trustedFrontendOrigin && new URL(origin).origin === new URL(trustedFrontendOrigin).origin);
   } catch {
     return false;
   }

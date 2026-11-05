@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   Eye,
@@ -15,19 +16,19 @@ import {
   CalendarCheck,
   Stethoscope,
 } from "lucide-react";
+import { apiFetch } from "../../lib/api";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("patient");
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setError("");
-    setMessage("");
 
     if (!email.trim() || !password) {
       setError("Please enter your email and password.");
@@ -39,9 +40,19 @@ export default function LoginPage() {
       return;
     }
 
-    setMessage(
-      "Your form is valid. Sign-in will be enabled when the backend API is connected."
-    );
+    setSubmitting(true);
+    try {
+      const { user } = await apiFetch("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      router.replace(user.role === "doctor" ? "/doctor" : user.role === "admin" ? "/admin/doctors" : "/");
+      router.refresh();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -123,19 +134,6 @@ export default function LoginPage() {
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="auth-field">
-              <label htmlFor="login-role">Sign in as</label>
-              <select
-                id="login-role"
-                value={role}
-                onChange={(event) => setRole(event.target.value)}
-              >
-                <option value="patient">Patient</option>
-                <option value="doctor">Doctor</option>
-                <option value="admin">Administrator</option>
-              </select>
-            </div>
-
-            <div className="auth-field">
               <label htmlFor="login-email">Email address</label>
               <div className="auth-input-wrap">
                 <Mail size={18} />
@@ -154,17 +152,6 @@ export default function LoginPage() {
             <div className="auth-field">
               <div className="auth-label-row">
                 <label htmlFor="login-password">Password</label>
-                <button
-                  className="auth-text-button"
-                  type="button"
-                  onClick={() =>
-                    setError(
-                      "Password recovery will be connected to the backend."
-                    )
-                  }
-                >
-                  Forgot password?
-                </button>
               </div>
 
               <div className="auth-input-wrap">
@@ -200,12 +187,8 @@ export default function LoginPage() {
               <p className="auth-alert auth-error">{error}</p>
             )}
 
-            {message && (
-              <p className="auth-alert auth-success">{message}</p>
-            )}
-
-            <button className="auth-submit" type="submit">
-              Sign in
+            <button className="auth-submit" type="submit" disabled={submitting}>
+              {submitting ? "Signing in…" : "Sign in"}
               <ArrowRight size={17} />
             </button>
           </form>
